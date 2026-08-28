@@ -1,46 +1,42 @@
-# Devpost draft — GemmaJury
+# Devpost + live demo — 305 HackFiesta Miami (Session A)
 
-Copy these fields into https://allthingsagentichackathon.devpost.com/
+**Event:** 305 HackFiesta Miami Edition August 2026
+**Room:** FIU PG6 Room 144
+**Live demos:** today 6:00–7:00 PM
+**Required form:** https://305hackfiestamiamiaug2026.devpost.com/
+**Public repo:** https://github.com/PinardKevin/GemmaJury
 
-**Category:** Taskmaster
+Gemma is required and scored at 30/100. Do not mention Gemini as the star. Gemma sits the three judge seats.
+
+## Paste into Devpost
 
 **Project name:** GemmaJury
 
-## Tagline
+**Tagline:** Three Gemma 4 judges score a hackathon submission in one sitting.
 
-Three Gemma 4 judges. One Gemini 3.5 steward. A verdict, not a chatbot.
+**Built with:** Gemma 4, Google ADK, Gemini 3.5 Flash (steward only), FastAPI, GitHub API
 
-## Description
+**Description:**
 
-Hackathon judging is a messy multi-step chore: open the repo, skim the README, click the demo, watch a reel, argue about creativity, write notes. GemmaJury does that work.
+Hackathon judges run out of time. They open a repo, skim a README, click a demo, argue about creativity, and guess at a score.
 
-A Chief Steward running Gemini 3.5 Flash pulls public evidence (GitHub tree + README + demo page). It then fans the docket out to three specialist judges — all Gemma 4 — in a Google ADK ParallelAgent:
+GemmaJury is a multi-agent panel that does that chore. A steward gathers the public repo and demo. Then three specialist judges — all Gemma 4 — score in parallel:
 
-- Code Judge — architecture, reproducibility, whether Gemma is actually doing the work
-- Demo Judge — public proof, narrative, whether the agent loop is visible
-- Creativity Judge — novelty, taste, whether multi-agent earned its keep
+- Code judge: architecture, reproducibility, whether Gemma is actually doing the work
+- Demo judge: public proof and whether a stranger can see the agent loop
+- Creativity judge: novelty, taste, whether multi-agent earned its keep
 
-Gemini writes the final weighted opinion (code 40 / demo 30 / creativity 30) and stores the docket in Firestore. The UI is a scorecard, not a chat box.
+The steward writes one weighted verdict a human can read aloud. Gemma is the panel. Everything else is clerk work.
 
-Gemma is prioritized on purpose. Gemini only clerks the court.
+**Repo URL:** https://github.com/PinardKevin/GemmaJury
+**Demo URL:** http://localhost:8080 (live on our laptop at the showcase; sample docket works without a key)
 
-## Built with
+## 90-second live demo script
 
-Google Gemma 4, Gemini 3.5 Flash, Google Agent Development Kit (ADK), Cloud Run, Firestore, FastAPI, public GitHub API
+1. Problem (15s): Judges cannot fairly read every repo tonight. We built them a panel.
+2. Gemma first (15s): Open agents/models.py. Three judges are gemma-4-31b-it. Gemini only stewards.
+3. Click (30s): Open localhost:8080. Hit Play sample docket. Three cards fill: code, demo, creativity. Total and ship/revise/reject.
+4. If the key works (20s): Paste this repo URL, convene the live panel, show tools fetching GitHub.
+5. Close (10s): Gemma sits the bench. The steward keeps the minutes.
 
-## What to attach
-
-- Hosted project URL: your Cloud Run service after `./deploy/deploy.sh`
-- Repo: https://github.com/PinardKevin/GemmaJury
-- Architecture diagram: screenshot of docs/ARCHITECTURE.md or the header graphic
-- Demo video (~4 min): convene the panel on a third-party public repo, then run the sample self-docket
-- Bonus social: post on X with #AllThingsAgenticHackathon
-
-## Script for the 4-minute video
-
-0:00 Problem — judging a hackathon submission is a workflow, not a prompt.
-0:30 Architecture — three Gemma judges, Gemini steward, ADK parallel fan-out, Cloud Run.
-1:10 Live — paste a public repo + demo, watch ingest, three cards fill, verdict lands.
-2:40 Open agents/agent.py and agents/models.py. Point at Gemma as the panel.
-3:20 Deploy path and Firestore docket id.
-3:40 Close — "Gemma sits the bench. Gemini keeps the minutes."
+If Wi-Fi dies: sample docket still renders. That is the fallback. Do not debug live.
