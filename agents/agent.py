@@ -1,22 +1,17 @@
-"""ADK root agent.
-
-Pattern used (the ADK workshop's parallel fan-out):
-  SequentialAgent
-    1. ingest steward  (Gemini 3.5)
-    2. ParallelAgent   (three Gemma 4 judges)
-    3. verdict steward (Gemini 3.5)
-"""
+"""ADK root agent — every LlmAgent uses local Gemma 4 through Ollama."""
 
 from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 
-from .models import gemini_steward_model, gemma_judge_model
+from .models import local_gemma_adk_model
 from .prompts import CODE_JUDGE, CREATIVITY_JUDGE, DEMO_JUDGE, STEWARD_INGEST, VERDICT_WRITER
 from .tools import fetch_demo_evidence, fetch_github_evidence, fetch_github_file
 
+_local = local_gemma_adk_model()
+
 ingest_agent = LlmAgent(
     name="chief_steward_ingest",
-    model=gemini_steward_model(),
-    description="Gathers public repo, demo, and pitch evidence into a docket.",
+    model=_local,
+    description="Local Gemma 4 steward that gathers public repo and demo evidence.",
     instruction=STEWARD_INGEST,
     tools=[fetch_github_evidence, fetch_demo_evidence, fetch_github_file],
     output_key="evidence_pack",
@@ -24,8 +19,8 @@ ingest_agent = LlmAgent(
 
 code_judge = LlmAgent(
     name="code_judge",
-    model=gemma_judge_model(),
-    description="Gemma 4 judge for architecture, correctness, and Gemma-first design.",
+    model=_local,
+    description="Local Gemma 4 judge for architecture and Gemma-first design.",
     instruction=CODE_JUDGE,
     tools=[fetch_github_file],
     output_key="code_opinion",
@@ -33,8 +28,8 @@ code_judge = LlmAgent(
 
 demo_judge = LlmAgent(
     name="demo_judge",
-    model=gemma_judge_model(),
-    description="Gemma 4 judge for demo reels, public proof, and presentation.",
+    model=_local,
+    description="Local Gemma 4 judge for demo reels and public proof.",
     instruction=DEMO_JUDGE,
     tools=[fetch_demo_evidence],
     output_key="demo_opinion",
@@ -42,28 +37,28 @@ demo_judge = LlmAgent(
 
 creativity_judge = LlmAgent(
     name="creativity_judge",
-    model=gemma_judge_model(),
-    description="Gemma 4 judge for novelty, taste, and whether agents were necessary.",
+    model=_local,
+    description="Local Gemma 4 judge for novelty and taste.",
     instruction=CREATIVITY_JUDGE,
     output_key="creativity_opinion",
 )
 
 panel = ParallelAgent(
     name="gemma_panel",
-    description="Three Gemma 4 specialist judges running concurrently.",
+    description="Three local Gemma 4 specialist judges running concurrently.",
     sub_agents=[code_judge, demo_judge, creativity_judge],
 )
 
 verdict_agent = LlmAgent(
     name="chief_steward_verdict",
-    model=gemini_steward_model(),
-    description="Reconciles the Gemma panel into a weighted verdict.",
+    model=_local,
+    description="Local Gemma 4 steward that writes the weighted verdict.",
     instruction=VERDICT_WRITER,
     output_key="verdict",
 )
 
 root_agent = SequentialAgent(
     name="gemma_jury",
-    description="Hackathon judging workflow: ingest, Gemma panel, verdict.",
+    description="Fully local Gemma 4 judging workflow.",
     sub_agents=[ingest_agent, panel, verdict_agent],
 )

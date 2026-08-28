@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from agents.models import GEMINI_MODEL_ID, GEMMA_MODEL_ID
+from agents.local_gemma import GEMMA_LOCAL_MODEL, ollama_status
 from agents.runner import run_jury
 from server.store import list_dockets, save_docket
 
@@ -20,7 +20,7 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 
-app = FastAPI(title="GemmaJury", version="1.0.0")
+app = FastAPI(title="GemmaJury", version="1.1.0")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -39,12 +39,14 @@ def index() -> FileResponse:
 
 @app.get("/healthz")
 def healthz() -> dict:
+    status = ollama_status()
     return {
         "ok": True,
-        "steward": GEMINI_MODEL_ID,
-        "judges": GEMMA_MODEL_ID,
-        "has_key": bool(os.getenv("GEMINI_API_KEY")),
-        "project": os.getenv("GOOGLE_CLOUD_PROJECT") or None,
+        "runtime": "ollama-local",
+        "judges": GEMMA_LOCAL_MODEL,
+        "steward": GEMMA_LOCAL_MODEL,
+        "ollama": status,
+        "cloud_key_required": False,
     }
 
 

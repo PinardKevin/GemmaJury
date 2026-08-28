@@ -1,4 +1,8 @@
-"""Programmatic runner used by the FastAPI UI."""
+"""Programmatic runner used by the FastAPI UI.
+
+Live path talks only to local Gemma 4 through Ollama.
+Sample path is the offline fallback if Ollama is not installed yet.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from .models import GEMINI_MODEL_ID, GEMMA_MODEL_ID
+from .local_gemma import GEMMA_LOCAL_MODEL, LocalGemmaError, gemma_generate, ollama_status
 from .prompts import CODE_JUDGE, CREATIVITY_JUDGE, DEMO_JUDGE, STEWARD_INGEST, VERDICT_WRITER
 from .tools import fetch_demo_evidence, fetch_github_evidence
 
@@ -32,21 +36,6 @@ def _extract_json(text: str) -> dict[str, Any]:
         if not match:
             raise
         return json.loads(match.group(0))
-
-
-def _genai_client():
-    from google import genai
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing")
-    return genai.Client(api_key=api_key)
-
-
-def _generate(model: str, prompt: str) -> str:
-    client = _genai_client()
-    response = client.models.generate_content(model=model, contents=prompt)
-    return (response.text or "").strip()
 
 
 def build_user_prompt(payload: dict[str, str]) -> str:
@@ -78,27 +67,27 @@ def gather_evidence(payload: dict[str, str]) -> dict[str, Any]:
     return evidence
 
 
-def run_direct_panel(payload: dict[str, str]) -> dict[str, Any]:
+def run_local_panel(payload: dict[str, str]) -> dict[str, Any]:
     evidence = gather_evidence(payload)
-    evidence_json = json.dumps(evidence, ensure_ascii=False)[:20000]
-    ingest_notes = _generate(
-        GEMINI_MODEL_ID,
-        f"{STEWARD_INGEST}\n\nUSER SUBMISSION:\n{build_user_prompt(payload)}\n\nTOOL OUTPUT:\n{evidence_json}",
+    evidence_json = json.dumps(evidence, ensure_ascii=False)[:12000]
+    ingest_notes = gemma_generate(
+        f"{STEWARD_INGEST}\n\nUSER SUBMISSION:\n{build_user_prompt(payload)}\n\nTOOL OUTPUT:\n{evidence_json}"
     )
 
     def judge(instruction: str) -> dict[str, Any]:
-        raw = _generate(
-            GEMMA_MODEL_ID,
-            f"{instruction}\n\nEVIDENCE PACK:\n{ingest_notes}\n\nRAW TOOL JSON:\n{evidence_json}",
+        raw = gemma_generate(
+            f"{instruction}\n\nEVIDENCE PACK:\n{ingest_notes}\n\nRAW TOOL JSON:\n{evidence_json}"
         )
         return _extract_json(raw)
 
     code = judge(CODE_JUDGE)
     demo = judge(DEMO_JUDGE)
     creativity = judge(CREATIVITY_JUDGE)
-    verdict_raw = _generate(
-        GEMINI_MODEL_ID,
-        f"{VERDICT_WRITER}\n\nEVIDENCE:\n{ingest_notes}\n\nCODE_OPINION:\n{json.dumps(code)}\n\nDEMO_OPINION:\n{json.dumps(demo)}\n\nCREATIVITY_OPINION:\n{json.dumps(creativity)}",
+    verdict_raw = gemma_generate(
+        f"{VERDICT_WRITER}\n\nEVIDENCE:\n{ingest_notes}\n\n"
+        f"CODE_OPINION:\n{json.dumps(code)}\n\n"
+        f"DEMO_OPINION:\n{json.dumps(demo)}\n\n"
+        f"CREATIVITY_OPINION:\n{json.dumps(creativity)}"
     )
     verdict = _extract_json(verdict_raw)
     verdict.setdefault("panel", {})
@@ -106,9 +95,11 @@ def run_direct_panel(payload: dict[str, str]) -> dict[str, Any]:
     verdict["panel"]["demo"] = demo
     verdict["panel"]["creativity"] = creativity
     verdict["models"] = {
-        "steward": GEMINI_MODEL_ID,
-        "judges": GEMMA_MODEL_ID,
-        "orchestration": "Sequential ingest -> Parallel Gemma panel -> Gemini verdict",
+        "runtime": "ollama-local",
+        "judges": GEMMA_LOCAL_MODEL,
+        "steward": GEMMA_LOCAL_MODEL,
+        "orchestration": "Local Gemma ingest -> three local Gemma judges -> local Gemma verdict",
+        "ollama": ollama_status(),
     }
     verdict["evidence_excerpt"] = ingest_notes[:1500]
     return verdict
@@ -123,17 +114,28 @@ def run_jury(payload: dict[str, str], *, sample: bool = False) -> dict[str, Any]
     if sample or os.getenv("DEMO_MODE", "").lower() in {"1", "true", "yes"}:
         data = load_sample()
         data["mode"] = "sample"
+        data["models"] = {
+            "runtime": "sample-fallback",
+            "judges": GEMMA_LOCAL_MODEL,
+            "note": "Recorded docket. Click Convene the panel after ollama pull gemma4:e2b to run live local Gemma.",
+        }
         return data
-    if not os.getenv("GEMINI_API_KEY"):
+    status = ollama_status()
+    if not status.get("ok") or not status.get("pulled"):
         data = load_sample()
-        data["mode"] = "sample_no_key"
-        data["note"] = "No GEMINI_API_KEY set — showing the recorded self-verdict."
+        data["mode"] = "sample_ollama_missing"
+        data["note"] = (
+            "Local Gemma is not ready. Install Ollama, run `ollama pull gemma4:e2b`, "
+            "keep `ollama serve` running, then click Convene the panel."
+        )
+        data["error"] = status.get("error") or f"model not pulled: {GEMMA_LOCAL_MODEL}"
+        data["models"] = {"runtime": "ollama-missing", "ollama": status}
         return data
     try:
-        verdict = run_direct_panel(payload)
-        verdict["mode"] = "live"
+        verdict = run_local_panel(payload)
+        verdict["mode"] = "live-local-gemma"
         return verdict
-    except Exception as exc:  # noqa: BLE001
+    except (LocalGemmaError, Exception) as exc:  # noqa: BLE001
         data = load_sample()
         data["mode"] = "sample_after_error"
         data["error"] = str(exc)
