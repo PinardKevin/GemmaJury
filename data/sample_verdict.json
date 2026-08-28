@@ -1,0 +1,43 @@
+{
+  "title": "GemmaJury — self docket",
+  "total": 8.4,
+  "recommendation": "ship",
+  "weights": {"code": 0.4, "demo": 0.3, "creativity": 0.3},
+  "models": {
+    "steward": "gemini-3.5-flash",
+    "judges": "gemma-4-31b-it",
+    "orchestration": "Sequential ingest -> Parallel Gemma panel -> Gemini verdict"
+  },
+  "panel": {
+    "code": {
+      "judge": "code",
+      "model": "gemma-4",
+      "scores": {"architecture": 9, "correctness": 8, "gemma_first": 9, "hygiene": 8, "overall": 8.5},
+      "citations": ["agents/agent.py", "agents/models.py", "agents/tools.py", "Dockerfile"],
+      "strengths": ["ADK SequentialAgent + ParallelAgent is the control plane.", "Gemma 4 is the three specialist judges; Gemini only stewards.", "Tools hit live public GitHub and demo URLs."],
+      "risks": ["Three Gemma 4 calls add latency.", "Firestore is optional."],
+      "opinion": "This is a real multi-agent workflow. Gemma is the panel, not a sticker."
+    },
+    "demo": {
+      "judge": "demo",
+      "model": "gemma-4",
+      "scores": {"public_proof": 8, "narrative": 9, "agent_loop_visible": 9, "readiness": 8, "overall": 8.4},
+      "citations": ["server/static/index.html", "docs/DEVPOST.md", "README.md"],
+      "strengths": ["Scorecard UI makes the three-judge loop visible.", "Sample docket keeps the demo alive without keys."],
+      "risks": ["A hosted Cloud Run URL must stay on the Devpost form."],
+      "opinion": "The product is the verdict page. Show ingest, three Gemma cards, then the opinion."
+    },
+    "creativity": {
+      "judge": "creativity",
+      "model": "gemma-4",
+      "scores": {"novelty": 8, "agent_necessity": 9, "taste": 8, "hackathon_fit": 9, "overall": 8.3},
+      "citations": ["README.md", "agents/prompts.py"],
+      "strengths": ["Judging submissions is a chore that needs specialists.", "Gemma as jury and Gemini as clerk is the right story for this contest."],
+      "risks": ["Meta-projects can feel cute if the rubrics stay vague."],
+      "opinion": "A single LLM call cannot honestly judge code, a demo reel, and taste at once. The panel earns its keep."
+    }
+  },
+  "synthesis": "GemmaJury turns hackathon judging into an autonomous workflow: Gemini 3.5 builds the docket, three Gemma 4 judges score in parallel, and a steward writes a weighted opinion a human can read aloud.",
+  "next_actions": ["Deploy the UI to Cloud Run and paste the public URL on Devpost.", "Record the demo against a third-party public repo.", "Quote exact README lines as citations."],
+  "evidence_excerpt": "Recorded self-verdict used when DEMO_MODE is on or no API key is present."
+}
