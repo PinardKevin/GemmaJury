@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GemmaJury — the panel is in session</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --ink:#1b1a17; --paper:#f4efe4; --rule:#c9bfa8; --gemma:#0f6e56; --gemini:#3b4a8a; --warn:#8a3b1b; --card:#fffdf7; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:"Source Sans 3",system-ui,sans-serif; }
+    header { padding:28px 32px 12px; border-bottom:1px solid var(--rule); display:flex; justify-content:space-between; gap:16px; align-items:baseline; }
+    header h1 { font-family:"Newsreader",Georgia,serif; font-weight:600; font-size:2.1rem; margin:0; }
+    header p { margin:6px 0 0; max-width:46rem; }
+    .mark { font-family:"IBM Plex Mono",monospace; font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; color:var(--gemma); }
+    main { display:grid; grid-template-columns:340px 1fr; gap:28px; padding:28px 32px 64px; }
+    form, .verdict { background:var(--card); border:1px solid var(--rule); padding:18px; }
+    label { display:block; font-size:.82rem; font-weight:600; margin:12px 0 4px; }
+    input, textarea { width:100%; font:inherit; padding:8px 10px; border:1px solid var(--rule); background:#fff; }
+    textarea { min-height:120px; resize:vertical; }
+    .row { display:flex; gap:8px; margin-top:16px; }
+    button { font:inherit; font-weight:700; border:0; padding:10px 14px; cursor:pointer; background:var(--gemma); color:#f4efe4; }
+    button.ghost { background:transparent; color:var(--ink); border:1px solid var(--rule); }
+    button:disabled { opacity:.6; cursor:wait; }
+    .scores { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0; }
+    .score { border:1px solid var(--rule); padding:12px; background:#fff; }
+    .score b { display:block; font-family:"Newsreader",serif; font-size:1.8rem; }
+    .score span { font-family:"IBM Plex Mono",monospace; font-size:.72rem; text-transform:uppercase; }
+    .panel { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    article { border-top:4px solid var(--gemma); background:#fff; padding:14px; border:1px solid var(--rule); border-top-width:4px; }
+    article h3 { margin:0 0 8px; font-family:"Newsreader",serif; }
+    ul { margin:8px 0; padding-left:18px; }
+    .meta { font-family:"IBM Plex Mono",monospace; font-size:.75rem; color:#5c5648; }
+    .rec { display:inline-block; padding:2px 8px; background:var(--gemma); color:#fff; font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:.75rem; }
+    .rec.revise { background:var(--gemini); }
+    .rec.reject { background:var(--warn); }
+    .status { min-height:1.2em; font-family:"IBM Plex Mono",monospace; font-size:.78rem; margin-top:10px; }
+    @media (max-width:960px) { main, .panel, .scores { grid-template-columns:1fr; } header, main { padding-left:16px; padding-right:16px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="mark">All Things Agentic · Taskmaster · Gemma first</div>
+      <h1>GemmaJury</h1>
+      <p>Three Gemma 4 judges sit the panel. Gemini 3.5 only stewards the docket. Paste a public repo and demo. Get a verdict, not a chat log.</p>
+    </div>
+    <div class="meta" id="health">loading models…</div>
+  </header>
+  <main>
+    <form id="form">
+      <label>Project name</label>
+      <input name="name" value="GemmaJury" />
+      <label>Public repository</label>
+      <input name="repo_url" placeholder="https://github.com/owner/repo" value="https://github.com/PinardKevin/GemmaJury" />
+      <label>Public demo</label>
+      <input name="demo_url" placeholder="https://…" />
+      <label>Pitch / Devpost blurb</label>
+      <textarea name="pitch">Multi-agent hackathon judging panel. Gemma 4 judges code, demo reels, and creativity in parallel. Gemini 3.5 Flash is the chief steward. Google ADK + Cloud Run + Firestore.</textarea>
+      <div class="row">
+        <button type="submit" id="run">Convene the panel</button>
+        <button type="button" class="ghost" id="sample">Play sample docket</button>
+      </div>
+      <div class="status" id="status"></div>
+    </form>
+    <section class="verdict" id="out">
+      <p class="meta">The bench is empty. Submit a docket.</p>
+    </section>
+  </main>
+  <script>
+    const out = document.getElementById("out");
+    const status = document.getElementById("status");
+    const form = document.getElementById("form");
+    const recClass = (r) => ({ ship:"ship", revise:"revise", reject:"reject" }[r] || "revise");
+    function card(title, block) {
+      if (!block) return "";
+      const scores = block.scores || {};
+      const bits = Object.entries(scores).map(([k,v]) => `<li>${k}: <b>${v}</b></li>`).join("");
+      const strengths = (block.strengths || []).map(s => `<li>${s}</li>`).join("");
+      const risks = (block.risks || []).map(s => `<li>${s}</li>`).join("");
+      return `<article><h3>${title}</h3><p class="meta">${block.model || "gemma-4"} · overall ${scores.overall ?? "—"}</p><ul>${bits}</ul><p>${block.opinion || ""}</p><p class="meta">Strengths</p><ul>${strengths}</ul><p class="meta">Risks</p><ul>${risks}</ul></article>`;
+    }
+    function render(payload) {
+      const v = payload.verdict || payload;
+      const rec = v.recommendation || "revise";
+      out.innerHTML = `<div class="meta">${v.models ? v.models.orchestration : ""} · mode ${v.mode || "live"}</div>
+        <h2 style="font-family:Newsreader,serif;margin:8px 0 4px">${v.title || "Verdict"}</h2>
+        <div><span class="rec ${recClass(rec)}">${rec}</span></div>
+        <div class="scores">
+          <div class="score"><span>Total</span><b>${Number(v.total ?? 0).toFixed(1)}</b></div>
+          <div class="score"><span>Code · Gemma</span><b>${v.panel?.code?.scores?.overall ?? "—"}</b></div>
+          <div class="score"><span>Demo · Gemma</span><b>${v.panel?.demo?.scores?.overall ?? "—"}</b></div>
+          <div class="score"><span>Create · Gemma</span><b>${v.panel?.creativity?.scores?.overall ?? "—"}</b></div>
+        </div>
+        <p>${v.synthesis || ""}</p>
+        <div class="panel">${card("Code judge", v.panel?.code)}${card("Demo judge", v.panel?.demo)}${card("Creativity judge", v.panel?.creativity)}</div>
+        <p class="meta" style="margin-top:16px">Next actions</p>
+        <ul>${(v.next_actions || []).map(x => `<li>${x}</li>`).join("")}</ul>
+        ${v.note ? `<p class="meta">${v.note}</p>` : ""}
+        ${v.error ? `<p class="meta">Live panel error (sample shown): ${v.error}</p>` : ""}`;
+    }
+    async function convene(sample) {
+      const btn = document.getElementById("run");
+      btn.disabled = true;
+      status.textContent = sample ? "Loading recorded self-verdict…" : "Steward ingesting evidence · Gemma panel in session…";
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.sample = sample;
+      try {
+        const res = await fetch("/api/judge", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(data) });
+        const json = await res.json();
+        render(json);
+        status.textContent = `Docket ${json.docket_id} · ${json.backend}`;
+      } catch (err) {
+        status.textContent = String(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    form.addEventListener("submit", (e) => { e.preventDefault(); convene(false); });
+    document.getElementById("sample").addEventListener("click", () => convene(true));
+    fetch("/healthz").then(r => r.json()).then(h => {
+      document.getElementById("health").innerHTML = `steward ${h.steward}<br>judges ${h.judges}<br>key ${h.has_key ? "present" : "missing — sample mode"}`;
+    }).catch(() => {});
+  </script>
+</body>
+</html>
